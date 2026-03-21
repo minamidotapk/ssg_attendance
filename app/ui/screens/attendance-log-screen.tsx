@@ -8,6 +8,10 @@ import {
   readLogsCache,
   writeLogsCache,
 } from "@/lib/attendance-log-client-cache"
+import {
+  type AttendanceLocation,
+  mapsUrl,
+} from "@/lib/attendance-location"
 
 /** Must match default `windowDays` used by GET /api/attendance/logs (rolling window). */
 const DEFAULT_LOG_WINDOW_DAYS = 90
@@ -77,18 +81,43 @@ function formatDutyHours(
 
 /** Inline style avoids Tailwind not seeing dynamic arbitrary grid templates. */
 const LOG_GRID_TEMPLATE =
-  "minmax(6.5rem, 1fr) minmax(4.5rem, 0.75fr) minmax(7rem, 2fr) minmax(4.5rem, 0.75fr) minmax(7rem, 2fr) minmax(5rem, 0.75fr)"
+  "minmax(6rem, 1fr) minmax(4.25rem, 0.7fr) minmax(6.5rem, 1.7fr) minmax(5.5rem, 1fr) minmax(4.25rem, 0.7fr) minmax(6.5rem, 1.7fr) minmax(5.5rem, 1fr) minmax(4.5rem, 0.65fr)"
+
+function LocationCell({ loc }: { loc: AttendanceLocation | null | undefined }) {
+  if (!loc) {
+    return <span className="text-xs text-gray-400">—</span>
+  }
+  const href = mapsUrl(loc.latitude, loc.longitude)
+  const label = `${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}`
+  const title =
+    loc.accuracy != null
+      ? `${label} (±${Math.round(loc.accuracy)} m)`
+      : label
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={title}
+      className="text-xs font-medium text-cyan-700 underline-offset-2 hover:underline"
+    >
+      Open map
+    </a>
+  )
+}
 
 function PhotoCell({
   photoId,
   side,
   dateYmd,
   timeRaw,
+  location,
 }: {
   photoId: string | null
   side: "in" | "out"
   dateYmd: string
   timeRaw: string | null
+  location?: AttendanceLocation | null
 }) {
   const [src, setSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
@@ -208,6 +237,30 @@ function PhotoCell({
                 <dt className="inline font-medium text-gray-600">Time: </dt>
                 <dd className="inline">{formatLogTime(timeRaw)}</dd>
               </div>
+              {location ? (
+                <div>
+                  <dt className="inline font-medium text-gray-600">
+                    Location:{" "}
+                  </dt>
+                  <dd className="inline">
+                    <a
+                      href={mapsUrl(location.latitude, location.longitude)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cyan-700 underline-offset-2 hover:underline"
+                    >
+                      {location.latitude.toFixed(5)},{" "}
+                      {location.longitude.toFixed(5)}
+                    </a>
+                    {location.accuracy != null ? (
+                      <span className="text-gray-500">
+                        {" "}
+                        (±{Math.round(location.accuracy)} m)
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
             <button
               type="button"
@@ -318,8 +371,8 @@ export default function AttendanceLogScreen() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Attendance log</h1>
         <p className="mt-2 text-sm text-gray-600">
-          Your clock-in and clock-out records with photos. Dates and times are
-          shown in{" "}
+          Your clock-in and clock-out records with photos and GPS at each punch.
+          Dates and times are shown in{" "}
           <span className="font-medium text-gray-800">
             Philippines (Manila, UTC+8)
           </span>{" "}
@@ -378,7 +431,7 @@ export default function AttendanceLogScreen() {
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
         {/* CSS Grid (not <table>) so layout cannot collapse to a single column if global CSS alters table display. */}
         <div
-          className="min-w-[64rem] text-left text-sm"
+          className="min-w-[80rem] text-left text-sm"
           role="table"
           aria-label="Attendance records"
         >
@@ -409,6 +462,12 @@ export default function AttendanceLogScreen() {
               role="columnheader"
               className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900"
             >
+              Location IN
+            </div>
+            <div
+              role="columnheader"
+              className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900"
+            >
               Time OUT
             </div>
             <div
@@ -416,6 +475,12 @@ export default function AttendanceLogScreen() {
               className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900"
             >
               Picture of Time OUT
+            </div>
+            <div
+              role="columnheader"
+              className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900"
+            >
+              Location OUT
             </div>
             <div
               role="columnheader"
@@ -476,7 +541,14 @@ export default function AttendanceLogScreen() {
                     side="in"
                     dateYmd={row.date}
                     timeRaw={row.timeIn}
+                    location={row.locationIn ?? null}
                   />
+                </div>
+                <div
+                  role="cell"
+                  className="flex items-center px-4 py-3 text-gray-700"
+                >
+                  <LocationCell loc={row.locationIn ?? null} />
                 </div>
                 <div
                   role="cell"
@@ -493,7 +565,14 @@ export default function AttendanceLogScreen() {
                     side="out"
                     dateYmd={row.date}
                     timeRaw={row.timeOut}
+                    location={row.locationOut ?? null}
                   />
+                </div>
+                <div
+                  role="cell"
+                  className="flex items-center px-4 py-3 text-gray-700"
+                >
+                  <LocationCell loc={row.locationOut ?? null} />
                 </div>
                 <div
                   role="cell"

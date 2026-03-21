@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { onAuthStateChanged } from "firebase/auth"
 import { auth } from "@/firebase.config"
+import { requestDeviceLocation } from "@/lib/attendance-location"
 
 /** Persists “clocked in” across routes until OUT (per signed-in uid). */
 const CLOCKED_IN_STORAGE_KEY = "ssg_attendance_clocked_in_uid"
@@ -24,7 +25,7 @@ function captureFrameFromVideo(video: HTMLVideoElement): string | null {
   return canvas.toDataURL("image/jpeg", 0.82)
 }
 
-export default function AttendanceLogScreen() {
+export default function AttendanceScreen() {
   const [cameraOn, setCameraOn] = useState(false)
   const [streamError, setStreamError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<"in" | "out" | null>(null)
@@ -151,6 +152,18 @@ export default function AttendanceLogScreen() {
 
       setSubmitting(kind)
       try {
+        let location: Awaited<ReturnType<typeof requestDeviceLocation>>
+        try {
+          location = await requestDeviceLocation()
+        } catch (locErr) {
+          setStatusMessage(
+            locErr instanceof Error
+              ? locErr.message
+              : "Could not read your location.",
+          )
+          return
+        }
+
         const idToken = await user.getIdToken(true)
         const res = await fetch("/api/attendance", {
           method: "POST",
@@ -161,6 +174,11 @@ export default function AttendanceLogScreen() {
           body: JSON.stringify({
             kind,
             imageBase64,
+            location: {
+              latitude: location.latitude,
+              longitude: location.longitude,
+              accuracy: location.accuracy,
+            },
           }),
         })
         const data = (await res.json().catch(() => ({}))) as {
@@ -253,6 +271,12 @@ export default function AttendanceLogScreen() {
           {statusMessage}
         </p>
       ) : null}
+
+      <p className="text-center text-xs text-gray-500">
+        Each In/Out records GPS (browser will ask for permission). Wait a few
+        seconds near a window or outside for a more accurate fix. Use HTTPS or
+        localhost.
+      </p>
 
       <div
         className="mt-6 flex w-full flex-wrap items-center justify-center gap-3"

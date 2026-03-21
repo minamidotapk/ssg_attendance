@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { Binary, ReturnDocument, type Document } from "mongodb"
+import { parseAttendanceLocationPayload } from "@/lib/attendance-location"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
 import {
@@ -40,10 +41,22 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       kind?: string
       imageBase64?: string
+      location?: unknown
     }
 
     const kind = body.kind
     const imageBase64 = body.imageBase64
+    const location = parseAttendanceLocationPayload(body.location)
+
+    if (!location) {
+      return NextResponse.json(
+        {
+          error:
+            "Valid location is required (latitude and longitude). Allow location access and try again.",
+        },
+        { status: 400 },
+      )
+    }
 
     if (!imageBase64) {
       return NextResponse.json(
@@ -107,9 +120,15 @@ export async function POST(request: Request) {
         timeIn: time,
         imageIn: new Binary(buffer),
         contentTypeIn: "image/jpeg",
+        locationIn: {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        },
         timeOut: null,
         imageOut: null,
         contentTypeOut: null,
+        locationOut: null,
         createdAt: now,
         updatedAt: now,
       })
@@ -129,6 +148,11 @@ export async function POST(request: Request) {
           timeOut: time,
           imageOut: new Binary(buffer),
           contentTypeOut: "image/jpeg",
+          locationOut: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+          },
           updatedAt: now,
         },
       },

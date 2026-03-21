@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { Document } from "mongodb"
+import { parseAttendanceLocationPayload } from "@/lib/attendance-location"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
@@ -137,6 +138,12 @@ export async function GET(request: Request) {
       timeIn: (d.timeIn as string) ?? null,
       timeOut: (d.timeOut as string | null | undefined) ?? null,
       sessionId: String(d._id),
+      locationIn:
+        parseAttendanceLocationPayload(d.locationIn) ??
+        null,
+      locationOut:
+        parseAttendanceLocationPayload(d.locationOut) ??
+        null,
     }))
 
     return NextResponse.json({

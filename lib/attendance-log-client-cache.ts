@@ -3,15 +3,19 @@
  * and avoid re-downloading the same photos.
  */
 
+import type { AttendanceLocation } from "@/lib/attendance-location"
+
 /** One MongoDB session document per row (`sessionId`); IN/OUT photos use `?side=in|out`. */
 export type AttendanceLogRow = {
   date: string
   timeIn: string | null
   timeOut: string | null
   sessionId: string
+  locationIn: AttendanceLocation | null
+  locationOut: AttendanceLocation | null
 }
 
-const LOGS_PREFIX = "ssg_attendance_logs_v2:"
+const LOGS_PREFIX = "ssg_attendance_logs_v3:"
 /** How long JSON rows stay valid without hitting Refresh */
 export const ATTENDANCE_LOGS_TTL_MS = 30 * 60 * 1000
 
