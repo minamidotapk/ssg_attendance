@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from "react"
 import { auth } from "@/firebase.config"
 import { getCachedPhotoBlob } from "@/lib/attendance-log-client-cache"
 import type { AttendanceLocation } from "@/lib/attendance-location"
-import { mapsUrl } from "@/lib/attendance-location"
+import {
+  formatLocationPlace,
+  hasPlaceLabels,
+  mapsUrl,
+} from "@/lib/attendance-location"
 import { formatLogDate, formatLogTime } from "@/lib/attendance-log-display"
 
 type PhotoCellProps = {
@@ -80,25 +84,34 @@ function PhotoPreviewModal({
             <dd className="inline">{formatLogTime(timeRaw)}</dd>
           </div>
           {location ? (
-            <div>
-              <dt className="inline font-medium text-gray-600">Location: </dt>
-              <dd className="inline">
-                <a
-                  href={mapsUrl(location.latitude, location.longitude)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-cyan-700 underline-offset-2 hover:underline"
-                >
-                  {location.latitude.toFixed(5)},{" "}
-                  {location.longitude.toFixed(5)}
-                </a>
-                {location.accuracy != null ? (
-                  <span className="text-gray-500">
-                    {" "}
-                    (±{Math.round(location.accuracy)} m)
-                  </span>
-                ) : null}
-              </dd>
+            <div className="space-y-2">
+              {hasPlaceLabels(location) ? (
+                <dl className="space-y-1">
+                  {location.barangay ? (
+                    <div>
+                      <dd>{location.barangay}</dd>
+                      <dd>{location.municipality}</dd>
+                      <dd>{location.province}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : (
+                <dl>
+                  <dt className="font-medium text-gray-600">Location</dt>
+                  <dd className="text-gray-700">{formatLocationPlace(location)}</dd>
+                </dl>
+              )}
+              <a
+                href={mapsUrl(location.latitude, location.longitude)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block text-cyan-700 underline-offset-2 hover:underline"
+              >
+                Open in map
+                {location.accuracy != null
+                  ? ` (±${Math.round(location.accuracy)} m)`
+                  : ""}
+              </a>
             </div>
           ) : null}
         </dl>

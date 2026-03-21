@@ -1,3 +1,5 @@
+import type { AttendanceLocation } from "@/lib/attendance-location"
+
 export type AttendancePostResponse = {
   error?: string
   ok?: boolean
@@ -5,4 +7,6 @@ export type AttendancePostResponse = {
   id?: string
   date?: string
   time?: string
+  /** Enriched place labels from server reverse geocode. */
+  location?: AttendanceLocation
 }

@@ -5,7 +5,11 @@ import {
   persistClockedInUid,
 } from "@/lib/attendance-clock-storage"
 import { captureFrameFromVideo } from "@/lib/attendance-video-capture"
-import { requestDeviceLocation } from "@/lib/attendance-location"
+import {
+  parseAttendanceLocationPayload,
+  requestDeviceLocation,
+  type AttendanceLocation,
+} from "@/lib/attendance-location"
 import {
   applyLiveUpdateToLogCaches,
   dispatchAttendanceLogLiveUpdate,
@@ -147,11 +151,19 @@ export function useAttendanceSubmit({
           return
         }
 
-        const locPayload = {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-        }
+        const parsedFromApi =
+          data.location != null
+            ? parseAttendanceLocationPayload(data.location as unknown)
+            : null
+        const locPayload: AttendanceLocation =
+          parsedFromApi ?? {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+            barangay: null,
+            municipality: null,
+            province: null,
+          }
 
         if (data.id && data.date && data.time) {
           if (kind === "in") {

@@ -7,6 +7,10 @@ export type AttendanceLocation = {
   longitude: number
   /** Meters, or null if the browser did not report it */
   accuracy: number | null
+  /** From server reverse geocode (Philippines); null if unknown / legacy row */
+  barangay: string | null
+  municipality: string | null
+  province: string | null
 }
 
 /** Lower = better (meters); unknown accuracy sorts last. */
@@ -23,6 +27,9 @@ function positionToLocation(pos: GeolocationPosition): AttendanceLocation {
       pos.coords.accuracy != null && Number.isFinite(pos.coords.accuracy)
         ? pos.coords.accuracy
         : null,
+    barangay: null,
+    municipality: null,
+    province: null,
   }
 }
 
@@ -55,7 +62,33 @@ export function parseAttendanceLocationPayload(
     const a = Number(o.accuracy)
     if (Number.isFinite(a) && a >= 0) accuracy = a
   }
-  return { latitude, longitude, accuracy }
+
+  const str = (k: string): string | null => {
+    const v = o[k]
+    return typeof v === "string" && v.trim() ? v.trim() : null
+  }
+
+  return {
+    latitude,
+    longitude,
+    accuracy,
+    barangay: str("barangay"),
+    municipality: str("municipality"),
+    province: str("province"),
+  }
+}
+
+/** Human-readable place line for tables / modals (falls back to coordinates). */
+export function formatLocationPlace(loc: AttendanceLocation): string {
+  const parts = [loc.barangay, loc.municipality, loc.province].filter(
+    (p): p is string => Boolean(p),
+  )
+  if (parts.length > 0) return parts.join(", ")
+  return `${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}`
+}
+
+export function hasPlaceLabels(loc: AttendanceLocation): boolean {
+  return Boolean(loc.barangay || loc.municipality || loc.province)
 }
 
 function getCurrentPositionOnce(

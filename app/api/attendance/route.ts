@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { Binary, ReturnDocument, type Document } from "mongodb"
-import { parseAttendanceLocationPayload } from "@/lib/attendance-location"
+import {
+  parseAttendanceLocationPayload,
+  type AttendanceLocation,
+} from "@/lib/attendance-location"
+import { reverseGeocodeToPhPlace } from "@/lib/reverse-geocode-nominatim"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
 import {
@@ -29,6 +33,20 @@ function formatDateTimeInZone(now: Date, timeZone: string) {
   }).format(now)
 
   return { date, time }
+}
+
+async function buildStoredLocation(
+  loc: NonNullable<ReturnType<typeof parseAttendanceLocationPayload>>,
+): Promise<AttendanceLocation> {
+  const place = await reverseGeocodeToPhPlace(loc.latitude, loc.longitude)
+  return {
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    accuracy: loc.accuracy,
+    barangay: place.barangay,
+    municipality: place.municipality,
+    province: place.province,
+  }
 }
 
 export async function POST(request: Request) {
@@ -94,6 +112,8 @@ export async function POST(request: Request) {
     const tz = process.env.ATTENDANCE_TIMEZONE ?? "Asia/Manila"
     const { date, time } = formatDateTimeInZone(now, tz)
 
+    const locationDoc = await buildStoredLocation(location)
+
     const client = await getMongoClientPromise()
     const db = client.db(getAttendanceDbName())
     const coll = db.collection(ATTENDANCE_SESSIONS_COLLECTION)
@@ -120,11 +140,7 @@ export async function POST(request: Request) {
         timeIn: time,
         imageIn: new Binary(buffer),
         contentTypeIn: "image/jpeg",
-        locationIn: {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-        },
+        locationIn: locationDoc,
         timeOut: null,
         imageOut: null,
         contentTypeOut: null,
@@ -138,6 +154,7 @@ export async function POST(request: Request) {
         id: result.insertedId.toString(),
         date,
         time,
+        location: locationDoc,
       })
     }
 
@@ -148,11 +165,7 @@ export async function POST(request: Request) {
           timeOut: time,
           imageOut: new Binary(buffer),
           contentTypeOut: "image/jpeg",
-          locationOut: {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-          },
+          locationOut: locationDoc,
           updatedAt: now,
         },
       },
@@ -182,6 +195,7 @@ export async function POST(request: Request) {
       id: String(after._id),
       date,
       time,
+      location: locationDoc,
     })
   } catch (e) {
     console.error("[api/attendance]", e)
