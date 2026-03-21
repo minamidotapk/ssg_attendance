@@ -1,0 +1,113 @@
+"use client"
+
+import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+
+import ssgLogo from "@/app/assets/ssg.png"
+import { Spinner } from "@/app/components/spinner"
+
+export type UiSidebarSection = "attendance" | "attendance-log"
+
+export const UI_SIDEBAR_ITEMS: ReadonlyArray<{
+  id: UiSidebarSection
+  label: string
+  href: string
+}> = [
+  { id: "attendance", label: "Attendance", href: "/ui/attendance" },
+  { id: "attendance-log", label: "Attendance Log", href: "/ui/attendance-log" },
+]
+
+type UiSidebarProps = {
+  /** Shown in the sidebar footer (e.g. signed-in user email) */
+  userEmail?: string | null
+  onLogout?: () => void | Promise<void>
+  isLoggingOut?: boolean
+  className?: string
+}
+
+/**
+ * Reusable vertical sidebar for the authenticated UI shell.
+ * Navigates via Next.js routes; active item follows the current pathname.
+ */
+export function UiSidebar({
+  userEmail = null,
+  onLogout,
+  isLoggingOut = false,
+  className = "",
+}: UiSidebarProps) {
+  const pathname = usePathname()
+  const displayEmail = userEmail?.trim() || null
+
+  return (
+    <aside
+      className={`flex min-h-screen w-60 shrink-0 flex-col border-r border-gray-200 bg-gradient-to-b from-white to-gray-50/80 p-4 shadow-sm ${className}`}
+      aria-label="Main navigation"
+    >
+      <header className="border-b border-gray-100 pb-4">
+        <div className="flex items-center gap-3">
+          <Image src={ssgLogo} alt="SSG Logo" width={40} height={40} />
+          <div>
+            <p className="mt-1.5 text-xs leading-snug text-gray-500">
+              Supreme Student Government
+            </p>
+            <h1 className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-cyan-700">
+              2025–2026
+            </h1>
+          </div>
+        </div>
+      </header>
+
+      <nav
+        className="flex flex-1 flex-col gap-2 py-5"
+        role="navigation"
+        aria-label="Sections"
+      >
+        {UI_SIDEBAR_ITEMS.map((item) => {
+          const isActive =
+            pathname === item.href ||
+            (item.href === "/ui/attendance" && pathname === "/ui")
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              className={`rounded-md px-4 py-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 ${
+                isActive
+                  ? "bg-cyan-600 text-white shadow-sm"
+                  : "bg-cyan-50 text-gray-900 hover:bg-cyan-100"
+              }`}
+            >
+              {item.label}
+            </Link>
+          )
+        })}
+      </nav>
+
+      <footer className="mt-auto border-t border-gray-100 pt-4">
+        <p className="text-[0.65rem] font-medium uppercase tracking-wide text-gray-400">
+          Signed in as
+        </p>
+        {displayEmail ? (
+          <p
+            className="mt-1 truncate text-sm font-medium text-gray-800"
+            title={displayEmail}
+          >
+            {displayEmail}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm italic text-gray-400">No email on file</p>
+        )}
+        {onLogout ? (
+          <button
+            type="button"
+            onClick={() => void onLogout()}
+            disabled={isLoggingOut}
+            className="mt-4 w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-400"
+          >
+            {isLoggingOut ? <Spinner /> : "Logout"}
+          </button>
+        ) : null}
+      </footer>
+    </aside>
+  )
+}
