@@ -27,6 +27,9 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# Firebase Admin service account (local file fallback — never commit)
+firebase-adminsdk.local.json
+
 # vercel
 .vercel
 
