@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { onAuthStateChanged, signOut } from "firebase/auth"
 import { auth } from "@/firebase.config"
 import { UiSidebar } from "@/app/components/ui-sidebar"
+import { AttendanceLogLiveVersionProvider } from "@/app/context/attendance-log-live-version"
 
 type UiShellProps = {
   children: ReactNode
@@ -44,7 +45,9 @@ export function UiShell({ children }: UiShellProps) {
 
       <main className="flex flex-1 flex-col p-6">
         <section className="mx-auto w-full flex-1 rounded-lg bg-white p-6 ">
-          {children}
+          <AttendanceLogLiveVersionProvider>
+            {children}
+          </AttendanceLogLiveVersionProvider>
         </section>
       </main>
     </div>

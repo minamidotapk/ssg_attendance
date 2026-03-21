@@ -58,13 +58,24 @@ export function parseAttendanceLocationPayload(
   return { latitude, longitude, accuracy }
 }
 
+function getCurrentPositionOnce(
+  options: PositionOptions,
+): Promise<AttendanceLocation> {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve(positionToLocation(pos)),
+      (err) => reject(mapGeolocationError(err)),
+      options,
+    )
+  })
+}
+
 /**
  * Browser geolocation for clock-in / clock-out (HTTPS or localhost only).
  *
- * Uses a short `watchPosition` session so the device can refine GPS instead
- * of returning the first coarse network fix. Keeps the sample with the best
- * (smallest) reported accuracy. Indoor / dense urban error is still limited by
- * hardware and OS — stay near a window or outside when possible.
+ * Tuned for **low latency**: short watch window, early exit on decent accuracy,
+ * then fallbacks. Trade-off: slightly coarser fixes indoors vs waiting tens of
+ * seconds for GPS to converge.
  */
 export function requestDeviceLocation(): Promise<AttendanceLocation> {
   return new Promise((resolve, reject) => {
@@ -77,18 +88,22 @@ export function requestDeviceLocation(): Promise<AttendanceLocation> {
       return
     }
 
-    /** How long to keep listening for better fixes (ms). */
-    const WATCH_MAX_MS = 24_000
-    /** Good enough to stop immediately (one strong GPS-like reading). */
-    const ACCURACY_STOP_SINGLE_M = 18
-    /** Good enough after we have at least two samples (avoids one lucky coarse fix). */
-    const ACCURACY_STOP_MULTI_M = 40
+    /** Wall-clock cap for watch phase — keeps UX snappy. */
+    const WATCH_MAX_MS = 5_500
+    /** Per-callback timeout (browser); avoid huge values that stall each fix. */
+    const PER_CALL_TIMEOUT_MS = 8_000
+    /** Stop early on one strong reading. */
+    const ACCURACY_STOP_SINGLE_M = 35
+    /** Two quick network fixes are enough to stop. */
+    const ACCURACY_STOP_MULTI_M = 120
     const MIN_SAMPLES_FOR_MULTI_STOP = 2
+    /** After this long, return best fix we have (don’t wait for perfect GPS). */
+    const STOP_AFTER_MS_WITH_ANY_FIX = 4_000
 
     const options: PositionOptions = {
       enableHighAccuracy: true,
       maximumAge: 0,
-      timeout: 28_000,
+      timeout: PER_CALL_TIMEOUT_MS,
     }
 
     let best: AttendanceLocation | null = null
@@ -96,6 +111,7 @@ export function requestDeviceLocation(): Promise<AttendanceLocation> {
     let watchId: number | null = null
     let settled = false
     let deadlineId: ReturnType<typeof setTimeout> | null = null
+    const startedAt = Date.now()
 
     const cleanup = () => {
       if (deadlineId != null) {
@@ -122,14 +138,10 @@ export function requestDeviceLocation(): Promise<AttendanceLocation> {
       reject(err)
     }
 
-    const onSample = (pos: GeolocationPosition) => {
-      if (settled) return
-      sampleCount++
-      const loc = positionToLocation(pos)
-      if (!best || locationQuality(loc) < locationQuality(best)) {
-        best = loc
-      }
+    const maybeStopEarly = () => {
+      if (settled || !best) return
       const acc = best.accuracy
+      const elapsed = Date.now() - startedAt
       if (acc != null && acc <= ACCURACY_STOP_SINGLE_M) {
         finishOk(best)
         return
@@ -140,7 +152,21 @@ export function requestDeviceLocation(): Promise<AttendanceLocation> {
         sampleCount >= MIN_SAMPLES_FOR_MULTI_STOP
       ) {
         finishOk(best)
+        return
       }
+      if (elapsed >= STOP_AFTER_MS_WITH_ANY_FIX) {
+        finishOk(best)
+      }
+    }
+
+    const onSample = (pos: GeolocationPosition) => {
+      if (settled) return
+      sampleCount++
+      const loc = positionToLocation(pos)
+      if (!best || locationQuality(loc) < locationQuality(best)) {
+        best = loc
+      }
+      maybeStopEarly()
     }
 
     watchId = navigator.geolocation.watchPosition(
@@ -162,19 +188,38 @@ export function requestDeviceLocation(): Promise<AttendanceLocation> {
         resolve(best)
         return
       }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (settled) return
-          settled = true
-          resolve(positionToLocation(pos))
-        },
-        (err) => {
-          if (settled) return
-          settled = true
-          reject(mapGeolocationError(err))
-        },
-        options,
-      )
+      void (async () => {
+        try {
+          const loc = await getCurrentPositionOnce({
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 7_000,
+          })
+          if (!settled) {
+            settled = true
+            resolve(loc)
+          }
+        } catch {
+          try {
+            const loc = await getCurrentPositionOnce({
+              enableHighAccuracy: false,
+              maximumAge: 0,
+              timeout: 5_000,
+            })
+            if (!settled) {
+              settled = true
+              resolve(loc)
+            }
+          } catch (e) {
+            if (!settled) {
+              settled = true
+              reject(
+                e instanceof Error ? e : new Error("Could not read your location."),
+              )
+            }
+          }
+        }
+      })()
     }, WATCH_MAX_MS)
   })
 }

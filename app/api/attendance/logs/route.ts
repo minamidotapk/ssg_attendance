@@ -4,11 +4,9 @@ import { parseAttendanceLocationPayload } from "@/lib/attendance-location"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
+import { DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS } from "@/lib/attendance-log-constants"
 
 export const runtime = "nodejs"
-
-/** Default rolling window when no single-day filter (avoids scanning entire collection). */
-const DEFAULT_WINDOW_DAYS = 90
 const MAX_WINDOW_DAYS = 366
 const MAX_CUSTOM_RANGE_DAYS = 366
 const MAX_SESSION_ROWS = 500
@@ -68,7 +66,7 @@ export async function GET(request: Request) {
     )
   }
 
-  let windowDays = DEFAULT_WINDOW_DAYS
+  let windowDays = DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS
   if (windowDaysRaw !== null && windowDaysRaw !== "") {
     const n = Number.parseInt(windowDaysRaw, 10)
     if (!Number.isFinite(n) || n < 1 || n > MAX_WINDOW_DAYS) {

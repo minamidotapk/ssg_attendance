@@ -74,7 +74,7 @@ export function UiSidebar({
               className={`rounded-md px-4 py-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 ${
                 isActive
                   ? "bg-cyan-600 text-white shadow-sm"
-                  : "bg-cyan-600/30 text-gray-900 hover:bg-cyan-600/50"
+                  : "bg-cyan-600/20 text-gray-900 hover:bg-cyan-600/50"
               }`}
             >
               {item.label}

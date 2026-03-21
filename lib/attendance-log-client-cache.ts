@@ -16,11 +16,122 @@ export type AttendanceLogRow = {
 }
 
 const LOGS_PREFIX = "ssg_attendance_logs_v3:"
-/** How long JSON rows stay valid without hitting Refresh */
+/** How long JSON rows stay valid before the next full fetch from the API */
 export const ATTENDANCE_LOGS_TTL_MS = 30 * 60 * 1000
+
+/** Dispatched on window after a successful IN/OUT so the log table can sync. */
+export const ATTENDANCE_LOG_LIVE_UPDATE_EVENT = "ssg:attendance-log-live-update"
+
+export type AttendanceLogLiveUpdate =
+  | { type: "session-in"; row: AttendanceLogRow }
+  | {
+      type: "session-out"
+      sessionId: string
+      /** Manila calendar date for this punch (matches API `date`). */
+      date: string
+      timeOut: string
+      locationOut: AttendanceLocation
+    }
 
 function logsStorageKey(uid: string, filterKey: string) {
   return `${LOGS_PREFIX}${uid}:${filterKey}`
+}
+
+function parseFilterKeyFromStorageKey(
+  fullKey: string,
+  uid: string,
+): string | null {
+  const head = `${LOGS_PREFIX}${uid}:`
+  if (!fullKey.startsWith(head)) return null
+  return fullKey.slice(head.length)
+}
+
+/**
+ * Merge a live IN/OUT into rows for one cache bucket (`d:YYYY-MM-DD` or `w:N`).
+ */
+export function mergeLiveIntoCachedRows(
+  rows: AttendanceLogRow[],
+  filterKey: string,
+  update: AttendanceLogLiveUpdate,
+): AttendanceLogRow[] {
+  if (filterKey.startsWith("d:")) {
+    const ymd = filterKey.slice(2)
+    if (update.type === "session-in") {
+      if (update.row.date !== ymd) return rows
+      if (rows.some((r) => r.sessionId === update.row.sessionId)) return rows
+      return [update.row, ...rows]
+    }
+    if (update.date !== ymd) return rows
+    return rows.map((r) =>
+      r.sessionId === update.sessionId
+        ? {
+            ...r,
+            timeOut: update.timeOut,
+            locationOut: update.locationOut,
+          }
+        : r,
+    )
+  }
+
+  if (update.type === "session-in") {
+    if (rows.some((r) => r.sessionId === update.row.sessionId)) return rows
+    return [update.row, ...rows]
+  }
+  return rows.map((r) =>
+    r.sessionId === update.sessionId
+      ? {
+          ...r,
+          timeOut: update.timeOut,
+          locationOut: update.locationOut,
+        }
+      : r,
+  )
+}
+
+/**
+ * Patch every sessionStorage log cache for this user (rolling + any date filters).
+ */
+export function applyLiveUpdateToLogCaches(
+  uid: string,
+  update: AttendanceLogLiveUpdate,
+): void {
+  if (typeof sessionStorage === "undefined") return
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i)
+    if (!key) continue
+    const filterKey = parseFilterKeyFromStorageKey(key, uid)
+    if (!filterKey) continue
+    try {
+      const raw = sessionStorage.getItem(key)
+      if (!raw) continue
+      const parsed = JSON.parse(raw) as { rows: AttendanceLogRow[]; at: number }
+      if (!Array.isArray(parsed.rows)) continue
+      const merged = mergeLiveIntoCachedRows(parsed.rows, filterKey, update)
+      if (JSON.stringify(merged) === JSON.stringify(parsed.rows)) continue
+      sessionStorage.setItem(
+        key,
+        JSON.stringify({ rows: merged, at: Date.now() }),
+      )
+    } catch {
+      /* ignore corrupt entries */
+    }
+  }
+}
+
+export function dispatchAttendanceLogLiveUpdate(update: AttendanceLogLiveUpdate) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(
+    new CustomEvent<AttendanceLogLiveUpdate>(ATTENDANCE_LOG_LIVE_UPDATE_EVENT, {
+      detail: update,
+    }),
+  )
+}
+
+export function isAttendanceLogStorageKeyForUser(
+  key: string | null,
+  uid: string,
+): boolean {
+  return key !== null && key.startsWith(`${LOGS_PREFIX}${uid}:`)
 }
 
 export function readLogsCache(
