@@ -1,11 +1,13 @@
 "use client"
 
-import { DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS } from "@/lib/attendance-log-constants"
+import { Spinner } from "@/app/components/spinner"
 import { AttendanceLogTable } from "@/app/ui/attendance-log/attendance-log-table"
 import { AttendanceLogToolbar } from "@/app/ui/attendance-log/attendance-log-toolbar"
 import { useAttendanceLogs } from "@/app/ui/attendance-log/use-attendance-logs"
+import { useRedirectAdminFromStudentRoutes } from "@/app/ui/use-redirect-admin-from-student-routes"
 
 export default function AttendanceLogScreen() {
+  const { showSpinner } = useRedirectAdminFromStudentRoutes()
   const {
     filterDate,
     setFilterDate,
@@ -15,6 +17,14 @@ export default function AttendanceLogScreen() {
     error,
     rangeHint,
   } = useAttendanceLogs()
+
+  if (showSpinner) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true">
+        <Spinner />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

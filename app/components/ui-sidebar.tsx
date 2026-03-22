@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation"
 import ssgLogo from "@/app/assets/ssg.png"
 import { Spinner } from "@/app/components/spinner"
 
-export type UiSidebarSection = "attendance" | "attendance-log"
+export type UiSidebarSection = "attendance" | "attendance-log" | "schedule"
 
 export const UI_SIDEBAR_ITEMS: ReadonlyArray<{
   id: UiSidebarSection
@@ -16,13 +16,26 @@ export const UI_SIDEBAR_ITEMS: ReadonlyArray<{
 }> = [
   { id: "attendance", label: "Attendance", href: "/ui/attendance" },
   { id: "attendance-log", label: "Attendance Log", href: "/ui/attendance-log" },
+  { id: "schedule", label: "Schedule", href: "/ui/schedule" },
 ]
+
+/** Items for non-admin users. Admins only use Attendance (see product rules). */
+export function getUiSidebarItemsForUser(isAdmin: boolean) {
+  if (isAdmin) {
+    return UI_SIDEBAR_ITEMS.filter((item) => item.id === "attendance")
+  }
+  return UI_SIDEBAR_ITEMS
+}
 
 type UiSidebarProps = {
   /** Shown in the sidebar footer (e.g. signed-in user email) */
   userEmail?: string | null
   onLogout?: () => void | Promise<void>
   isLoggingOut?: boolean
+  /** When true, only Attendance is shown in the nav. */
+  isAdmin?: boolean
+  /** While true, nav links are deferred to avoid the wrong set flashing. */
+  isRoleLoading?: boolean
   className?: string
 }
 
@@ -34,10 +47,13 @@ export function UiSidebar({
   userEmail = null,
   onLogout,
   isLoggingOut = false,
+  isAdmin = false,
+  isRoleLoading = false,
   className = "",
 }: UiSidebarProps) {
   const pathname = usePathname()
   const displayEmail = userEmail?.trim() || null
+  const navItems = getUiSidebarItemsForUser(isAdmin)
 
   return (
     <aside
@@ -63,24 +79,34 @@ export function UiSidebar({
         role="navigation"
         aria-label="Sections"
       >
-        {UI_SIDEBAR_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href === "/ui/attendance" && pathname === "/ui")
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className={`rounded-md px-4 py-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 ${
-                isActive
-                  ? "bg-cyan-600 text-white shadow-sm"
-                  : "bg-cyan-600/20 text-gray-900 hover:bg-cyan-600/50"
-              }`}
-            >
-              {item.label}
-            </Link>
-          )
-        })}
+        {isRoleLoading ? (
+          <div
+            className="flex justify-center py-6"
+            aria-busy="true"
+            aria-label="Loading navigation"
+          >
+            <Spinner />
+          </div>
+        ) : (
+          navItems.map((item) => {
+            const isActive =
+              pathname === item.href ||
+              (item.href === "/ui/attendance" && pathname === "/ui")
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`rounded-md px-4 py-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 ${
+                  isActive
+                    ? "bg-cyan-600 text-white shadow-sm"
+                    : "bg-cyan-600/20 text-gray-900 hover:bg-cyan-600/50"
+                }`}
+              >
+                {item.label}
+              </Link>
+            )
+          })
+        )}
       </nav>
 
       <footer className="mt-auto border-t border-gray-100 pt-4">
