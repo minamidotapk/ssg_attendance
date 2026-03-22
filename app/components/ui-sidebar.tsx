@@ -28,6 +28,7 @@ export function getUiSidebarItemsForUser(isAdmin: boolean) {
 }
 
 type UiSidebarProps = {
+  id?: string
   /** Shown in the sidebar footer (e.g. signed-in user email) */
   userEmail?: string | null
   onLogout?: () => void | Promise<void>
@@ -36,6 +37,10 @@ type UiSidebarProps = {
   isAdmin?: boolean
   /** While true, nav links are deferred to avoid the wrong set flashing. */
   isRoleLoading?: boolean
+  /** Narrow viewports: when true, slide-in drawer is visible. Ignored at md and up. */
+  mobileOpen?: boolean
+  /** Called after nav link press (e.g. close mobile drawer). */
+  onNavigate?: () => void
   className?: string
 }
 
@@ -44,11 +49,14 @@ type UiSidebarProps = {
  * Navigates via Next.js routes; active item follows the current pathname.
  */
 export function UiSidebar({
+  id,
   userEmail = null,
   onLogout,
   isLoggingOut = false,
   isAdmin = false,
   isRoleLoading = false,
+  mobileOpen = false,
+  onNavigate,
   className = "",
 }: UiSidebarProps) {
   const pathname = usePathname()
@@ -57,7 +65,10 @@ export function UiSidebar({
 
   return (
     <aside
-      className={`flex min-h-screen w-80 shrink-0 flex-col border-r border-gray-200 bg-gradient-to-b from-white to-gray-50/80 p-4 shadow-sm ${className}`}
+      id={id}
+      className={`flex w-80 shrink-0 flex-col border-r border-gray-200 bg-gradient-to-b from-white to-gray-50/80 p-4 shadow-sm max-md:fixed max-md:bottom-0 max-md:left-0 max-md:top-14 max-md:z-50 max-md:shadow-xl max-md:transition-transform max-md:duration-200 max-md:ease-out md:static md:z-auto md:min-h-screen ${
+        mobileOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full"
+      } ${className}`}
       aria-label="Main navigation"
     >
       <header className="border-b border-gray-100 pb-4">
@@ -96,6 +107,7 @@ export function UiSidebar({
               <Link
                 key={item.id}
                 href={item.href}
+                onClick={() => onNavigate?.()}
                 className={`rounded-md px-4 py-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 ${
                   isActive
                     ? "bg-cyan-600 text-white shadow-sm"
@@ -126,7 +138,10 @@ export function UiSidebar({
         {onLogout ? (
           <button
             type="button"
-            onClick={() => void onLogout()}
+            onClick={() => {
+              onNavigate?.()
+              void onLogout()
+            }}
             disabled={isLoggingOut}
             className="mt-4 w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-400"
           >
