@@ -13,7 +13,11 @@ export function getMongoClientPromise(): Promise<MongoClient> {
     )
   }
   if (!global._mongoClientPromise) {
-    global._mongoClientPromise = new MongoClient(uri).connect()
+    const client = new MongoClient(uri)
+    global._mongoClientPromise = client.connect().catch((err: unknown) => {
+      global._mongoClientPromise = undefined
+      return Promise.reject(err)
+    })
   }
   return global._mongoClientPromise
 }

@@ -7,6 +7,7 @@ import {
 import { reverseGeocodeToPhPlace } from "@/lib/reverse-geocode-nominatim"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
+import { logRouteError } from "@/lib/api-route-errors"
 import {
   getAttendanceDbName,
   getMongoClientPromise,
@@ -198,9 +199,8 @@ export async function POST(request: Request) {
       location: locationDoc,
     })
   } catch (e) {
-    console.error("[api/attendance]", e)
     return NextResponse.json(
-      { error: "Failed to save attendance" },
+      { error: logRouteError("api/attendance POST", e) },
       { status: 500 },
     )
   }

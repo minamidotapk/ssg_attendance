@@ -6,6 +6,7 @@ import {
   SCHEDULE_WEEKLY_DOC_ID,
   type ScheduleSettingsDoc,
 } from "@/lib/schedule-collections"
+import { logRouteError } from "@/lib/api-route-errors"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
 
 export const runtime = "nodejs"
@@ -47,9 +48,8 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ ok: true, hours })
   } catch (e) {
-    console.error("[api/admin/schedule PUT]", e)
     return NextResponse.json(
-      { error: "Failed to save schedule" },
+      { error: logRouteError("api/admin/schedule PUT", e) },
       { status: 500 },
     )
   }

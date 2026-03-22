@@ -3,6 +3,7 @@ import type { Document } from "mongodb"
 import { parseAttendanceLocationPayload } from "@/lib/attendance-location"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
+import { logRouteError } from "@/lib/api-route-errors"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
 import { DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS } from "@/lib/attendance-log-constants"
 
@@ -154,9 +155,8 @@ export async function GET(request: Request) {
       },
     })
   } catch (e) {
-    console.error("[api/attendance/logs]", e)
     return NextResponse.json(
-      { error: "Failed to load attendance logs" },
+      { error: logRouteError("api/attendance/logs GET", e) },
       { status: 500 },
     )
   }

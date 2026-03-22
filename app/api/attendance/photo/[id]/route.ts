@@ -5,6 +5,7 @@ import {
   ATTENDANCE_LOGS_LEGACY_COLLECTION,
   ATTENDANCE_SESSIONS_COLLECTION,
 } from "@/lib/attendance-collections"
+import { logRouteError } from "@/lib/api-route-errors"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
 
 export const runtime = "nodejs"
@@ -102,9 +103,8 @@ export async function GET(request: Request, props: Props) {
 
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   } catch (e) {
-    console.error("[api/attendance/photo]", e)
     return NextResponse.json(
-      { error: "Failed to load photo" },
+      { error: logRouteError("api/attendance/photo GET", e) },
       { status: 500 },
     )
   }

@@ -6,6 +6,7 @@ import {
   SCHEDULE_WEEKLY_DOC_ID,
   type ScheduleSettingsDoc,
 } from "@/lib/schedule-collections"
+import { logRouteError } from "@/lib/api-route-errors"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
 
 export const runtime = "nodejs"
@@ -24,9 +25,8 @@ export async function GET(request: Request) {
       hours: (doc?.hours ?? {}) as WeeklyScheduleHours,
     })
   } catch (e) {
-    console.error("[api/schedule GET]", e)
     return NextResponse.json(
-      { error: "Failed to load schedule" },
+      { error: logRouteError("api/schedule GET", e) },
       { status: 500 },
     )
   }
