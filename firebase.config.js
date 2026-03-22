@@ -77,4 +77,7 @@ if (typeof window !== "undefined" && config.measurementId && !useBuildPlaceholde
   }
 }
 
+/** False when the bundle was built without any NEXT_PUBLIC_FIREBASE_* (production login cannot work). */
+export const isFirebaseClientConfigured = !useBuildPlaceholders;
+
 export { app, auth, analytics };

@@ -3,6 +3,10 @@ import { ChangeEvent } from "react"
 export const UI_ROUTE = "/ui"
 export const INVALID_CREDENTIALS_MESSAGE = "Invalid email or password."
 
+/** Shown when NEXT_PUBLIC_FIREBASE_* were missing at build time (e.g. Vercel env not set before deploy). */
+export const FIREBASE_NOT_CONFIGURED_MESSAGE =
+  "Firebase client keys were missing when this site was built, so your password is never sent to your real project. In Vercel → Environment Variables, set every NEXT_PUBLIC_FIREBASE_* for Production, then redeploy."
+
 export type LoginFormState = {
   email: string
   password: string

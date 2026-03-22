@@ -3,9 +3,15 @@
 import { ChangeEvent, FormEvent, useState } from "react"
 import { useRouter } from "next/navigation"
 import { signInWithEmailAndPassword } from "firebase/auth"
-import { auth } from "../firebase.config"
+import { auth, isFirebaseClientConfigured } from "../firebase.config"
 
-import { LoginField, LoginFormState, UI_ROUTE, INVALID_CREDENTIALS_MESSAGE } from "@/app/utils/login"
+import {
+  LoginField,
+  LoginFormState,
+  UI_ROUTE,
+  INVALID_CREDENTIALS_MESSAGE,
+  FIREBASE_NOT_CONFIGURED_MESSAGE,
+} from "@/app/utils/login"
 import { Spinner } from "@/app/components/spinner"
 
 export default function Home() {
@@ -26,13 +32,29 @@ export default function Home() {
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError("")
+    if (!isFirebaseClientConfigured) {
+      setError(FIREBASE_NOT_CONFIGURED_MESSAGE)
+      return
+    }
     setIsLoading(true)
 
     try {
       await signInWithEmailAndPassword(auth, formState.email.trim(), formState.password)
       router.push(UI_ROUTE)
-    } catch (loginError) {
-      setError(INVALID_CREDENTIALS_MESSAGE)
+    } catch (loginError: unknown) {
+      const code =
+        loginError && typeof loginError === "object" && "code" in loginError
+          ? String((loginError as { code: unknown }).code)
+          : ""
+      if (
+        code === "auth/api-key-not-valid" ||
+        code === "auth/invalid-api-key" ||
+        code === "auth/operation-not-allowed"
+      ) {
+        setError(FIREBASE_NOT_CONFIGURED_MESSAGE)
+      } else {
+        setError(INVALID_CREDENTIALS_MESSAGE)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -65,7 +87,7 @@ export default function Home() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || !isFirebaseClientConfigured}
           className="flex min-h-[2.5rem] w-full items-center justify-center rounded-md bg-cyan-600 px-4 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-400"
         >
           {isLoading ? (
