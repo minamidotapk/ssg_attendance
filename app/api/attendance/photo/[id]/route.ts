@@ -20,6 +20,14 @@ function bufferFromBinaryField(raw: unknown): Buffer | null {
   return null
 }
 
+/**
+ * Node `Buffer` is a valid fetch body at runtime; TS `BodyInit` does not list it.
+ * `Blob` is typed as `BodyInit` and avoids copying the buffer.
+ */
+function bodyInitFromBuffer(buf: Buffer): Blob {
+  return new Blob([buf as unknown as BlobPart])
+}
+
 export async function GET(request: Request, props: Props) {
   const auth = await requireAttendanceAuth(request)
   if (!auth.ok) return auth.response
@@ -62,7 +70,7 @@ export async function GET(request: Request, props: Props) {
         (sideRaw === "in"
           ? sessionDoc.contentTypeIn
           : sessionDoc.contentTypeOut) ?? "image/jpeg"
-      return new NextResponse(buf, {
+      return new NextResponse(bodyInitFromBuffer(buf), {
         status: 200,
         headers: {
           "Content-Type": String(contentType),
@@ -83,7 +91,7 @@ export async function GET(request: Request, props: Props) {
       }
       const contentType =
         typeof legacy.contentType === "string" ? legacy.contentType : "image/jpeg"
-      return new NextResponse(buf, {
+      return new NextResponse(bodyInitFromBuffer(buf), {
         status: 200,
         headers: {
           "Content-Type": contentType,
