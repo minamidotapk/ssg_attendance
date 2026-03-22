@@ -4,6 +4,7 @@ import { parseWeeklyScheduleBody } from "@/lib/schedule-validate"
 import {
   SCHEDULE_SETTINGS_COLLECTION,
   SCHEDULE_WEEKLY_DOC_ID,
+  type ScheduleSettingsDoc,
 } from "@/lib/schedule-collections"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
 
@@ -35,7 +36,7 @@ export async function PUT(request: Request) {
   try {
     const client = await getMongoClientPromise()
     const db = client.db(getAttendanceDbName())
-    const coll = db.collection(SCHEDULE_SETTINGS_COLLECTION)
+    const coll = db.collection<ScheduleSettingsDoc>(SCHEDULE_SETTINGS_COLLECTION)
     const now = new Date()
 
     await coll.updateOne(
