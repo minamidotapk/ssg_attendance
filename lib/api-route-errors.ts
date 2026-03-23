@@ -16,7 +16,12 @@ export function logRouteError(routeLabel: string, err: unknown): string {
     lower.includes("authentication failed") ||
     lower.includes("bad auth") ||
     lower.includes("econnrefused") ||
-    lower.includes("ssl")
+    lower.includes("econnreset") ||
+    lower.includes("etimedout") ||
+    lower.includes("timed out") ||
+    lower.includes("server selection") ||
+    lower.includes("ssl") ||
+    lower.includes("ip whitelist")
   ) {
     return (
       "Database connection failed. In Vercel: confirm MONGODB_URI is set, MongoDB Atlas Network Access allows connections " +
