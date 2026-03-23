@@ -60,17 +60,38 @@ type ScheduleWeeklyGridProps = {
   dutySegments?: ScheduleDutySegments
   /** When false, hide attendance duty overlay (e.g. admin calendar preview). */
   showDutyLines?: boolean
+  /**
+   * Optional per-user overlays (colored strike lines) used by admin calendar preview.
+   * Each entry renders lines only where that user has schedule windows.
+   */
+  overlaySchedules?: ReadonlyArray<{ color: string; hours: WeeklyScheduleHours }>
 }
 
 function ScheduleWeeklyGridInner({
   hours,
   dutySegments = EMPTY_DUTY_SEGMENTS,
   showDutyLines = true,
+  overlaySchedules = [],
 }: ScheduleWeeklyGridProps) {
   const cols = scheduleHourColumns()
   const matrix = useMemo(
     () => buildCellMatrix(hours, dutySegments, cols, showDutyLines),
     [hours, dutySegments, cols, showDutyLines],
+  )
+  const overlayMatrix = useMemo(
+    () =>
+      SCHEDULE_WEEKDAYS.map((day) =>
+        cols.map((h) =>
+          overlaySchedules.flatMap((entry, idx) =>
+            scheduleShadeSegmentsInHour(entry.hours[day], h).map((seg) => ({
+              ...seg,
+              color: entry.color,
+              index: idx,
+            })),
+          ),
+        ),
+      ),
+    [cols, overlaySchedules],
   )
 
   return (
@@ -147,6 +168,27 @@ function ScheduleWeeklyGridInner({
                         aria-hidden
                       />
                     ))}
+                    {(overlayMatrix[di]?.[hi] ?? []).map((seg, oi, arr) => {
+                      // Stack active overlays in this cell so identical schedules don't overlap.
+                      const total = arr.length
+                      const center = (total - 1) / 2
+                      const offsetPx = (oi - center) * 3
+                      return (
+                        <div
+                          key={`o-${oi}-${seg.index}`}
+                          className="pointer-events-none absolute z-10 rounded-full"
+                          style={{
+                            left: `${seg.left}%`,
+                            width: `max(8px, ${seg.width}%)`,
+                            top: "50%",
+                            height: "2px",
+                            transform: `translateY(calc(-50% + ${offsetPx}px))`,
+                            backgroundColor: seg.color,
+                          }}
+                          aria-hidden
+                        />
+                      )
+                    })}
                     {cell.dutySegments.map((seg, i) => (
                       <div
                         key={`d-${i}`}

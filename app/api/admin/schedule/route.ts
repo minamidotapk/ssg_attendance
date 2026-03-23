@@ -143,6 +143,21 @@ export async function GET(request: Request) {
       })
     }
 
+    if (scope === "users") {
+      const userColl = db.collection<UserWeeklyScheduleDoc>(
+        USER_WEEKLY_SCHEDULES_COLLECTION,
+      )
+      const docs = await userColl.find({}).sort({ email: 1 }).toArray()
+      return NextResponse.json({
+        scope: "users" as const,
+        users: docs.map((d) => ({
+          firebaseUid: d.firebaseUid || d._id,
+          email: d.email,
+          hours: normalizeWeeklyHoursFromStored(d.hours ?? {}),
+        })),
+      })
+    }
+
     const globalColl = db.collection<ScheduleSettingsDoc>(SCHEDULE_SETTINGS_COLLECTION)
     const globalDoc = await globalColl.findOne({ _id: SCHEDULE_WEEKLY_DOC_ID })
     return NextResponse.json({
