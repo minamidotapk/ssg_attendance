@@ -12,6 +12,8 @@ type UiShellProps = {
   children: ReactNode
 }
 
+const ADMIN_EMAIL = "ssg20252026@gmail.com"
+
 export function UiShell({ children }: UiShellProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -70,6 +72,11 @@ export function UiShell({ children }: UiShellProps) {
       document.body.style.overflow = prev
     }
   }, [mobileNavOpen])
+
+  useEffect(() => {
+    const normalized = userEmail?.trim().toLowerCase() ?? ""
+    document.title = normalized === ADMIN_EMAIL ? "SSG Admin" : "SSG"
+  }, [userEmail])
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
