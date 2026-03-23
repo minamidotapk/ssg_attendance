@@ -21,9 +21,10 @@ import {
   writeScheduleWeekLogsCache,
 } from "@/lib/schedule-client-cache"
 import {
-  buildDutyHourSetByWeekday,
-  type ScheduleDutySets,
+  buildDutySegmentsByWeekday,
+  type ScheduleDutySegments,
 } from "@/lib/schedule-duty"
+import { scheduleHourColumns } from "@/lib/schedule-grid"
 import {
   getMondayToSaturdayYmdPack,
   getTodayYmd,
@@ -60,14 +61,15 @@ export function useSchedulePageData() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const dutySets: ScheduleDutySets = useMemo(() => {
+  const dutySegments: ScheduleDutySegments = useMemo(() => {
     const todayYmd = getTodayYmd(SCHEDULE_APP_TIMEZONE)
     const freshPack = getMondayToSaturdayYmdPack(SCHEDULE_APP_TIMEZONE)
-    return buildDutyHourSetByWeekday(
+    return buildDutySegmentsByWeekday(
       weekRows,
       freshPack.ymdByWeekday,
       todayYmd,
       SCHEDULE_APP_TIMEZONE,
+      scheduleHourColumns(),
     )
   }, [weekRows])
 
@@ -209,7 +211,7 @@ export function useSchedulePageData() {
 
   return {
     hours,
-    dutySets,
+    dutySegments,
     initialLoading,
     isRefreshing,
     error,

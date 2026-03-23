@@ -5,7 +5,8 @@
 import type { AttendanceLogRow } from "@/lib/attendance-log-client-cache"
 import type { WeeklyScheduleHours } from "@/lib/schedule-types"
 
-const HOURS_PREFIX = "ssg_schedule_hours_v1:"
+/** v3: resilient user lookup + time/day normalization on server. */
+const HOURS_PREFIX = "ssg_schedule_hours_v3:"
 const WEEK_LOGS_PREFIX = "ssg_schedule_week_logs_v1:"
 export const SCHEDULE_CACHE_TTL_MS = 30 * 60 * 1000
 

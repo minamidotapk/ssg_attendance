@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import type { Document } from "mongodb"
+import { requireAdminAuth } from "@/lib/admin-auth"
 import { parseAttendanceLocationPayload } from "@/lib/attendance-location"
-import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
-import { autoClockOutOpenSessionIfNeeded } from "@/lib/attendance-auto-clockout"
 import { logRouteError } from "@/lib/api-route-errors"
 import { getAttendanceDbName, getMongoClientPromise } from "@/lib/mongodb"
 import { DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS } from "@/lib/attendance-log-constants"
@@ -26,12 +25,9 @@ function formatYmdInTz(d: Date, timeZone: string) {
   }).format(d)
 }
 
-/**
- * One row per session document (IN + OUT in the same JSON).
- * Index: { firebaseUid: 1, date: -1 } on attendance_sessions.
- */
+/** All users’ sessions in the date range (admin only). */
 export async function GET(request: Request) {
-  const auth = await requireAttendanceAuth(request)
+  const auth = await requireAdminAuth(request)
   if (!auth.ok) return auth.response
 
   const { searchParams } = new URL(request.url)
@@ -118,7 +114,6 @@ export async function GET(request: Request) {
   }
 
   const match: Document = {
-    firebaseUid: auth.user.firebaseUid,
     date: { $gte: rangeFrom, $lte: rangeTo },
   }
 
@@ -126,7 +121,6 @@ export async function GET(request: Request) {
     const client = await getMongoClientPromise()
     const db = client.db(getAttendanceDbName())
     const coll = db.collection(ATTENDANCE_SESSIONS_COLLECTION)
-    await autoClockOutOpenSessionIfNeeded(coll, auth.user.firebaseUid, now, tz)
 
     const docs = await coll
       .find(match)
@@ -139,6 +133,7 @@ export async function GET(request: Request) {
       timeIn: (d.timeIn as string) ?? null,
       timeOut: (d.timeOut as string | null | undefined) ?? null,
       sessionId: String(d._id),
+      userEmail: String((d.email as string) ?? ""),
       locationIn:
         parseAttendanceLocationPayload(d.locationIn) ??
         null,
@@ -158,7 +153,7 @@ export async function GET(request: Request) {
     })
   } catch (e) {
     return NextResponse.json(
-      { error: logRouteError("api/attendance/logs GET", e) },
+      { error: logRouteError("api/admin/attendance/logs GET", e) },
       { status: 500 },
     )
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { Binary, ObjectId } from "mongodb"
+import { isAdminEmail } from "@/lib/admin"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import {
   ATTENDANCE_LOGS_LEGACY_COLLECTION,
@@ -52,10 +53,16 @@ export async function GET(request: Request, props: Props) {
     const db = client.db(getAttendanceDbName())
     const oid = new ObjectId(id)
 
-    const sessionDoc = await db.collection(ATTENDANCE_SESSIONS_COLLECTION).findOne({
+    let sessionDoc = await db.collection(ATTENDANCE_SESSIONS_COLLECTION).findOne({
       _id: oid,
       firebaseUid: auth.user.firebaseUid,
     })
+
+    if (!sessionDoc && isAdminEmail(auth.user.email)) {
+      sessionDoc = await db.collection(ATTENDANCE_SESSIONS_COLLECTION).findOne({
+        _id: oid,
+      })
+    }
 
     if (sessionDoc) {
       if (sideRaw === "out" && !sessionDoc.timeOut) {
@@ -80,10 +87,15 @@ export async function GET(request: Request, props: Props) {
       })
     }
 
-    const legacy = await db.collection(ATTENDANCE_LOGS_LEGACY_COLLECTION).findOne({
+    const collLegacy = db.collection(ATTENDANCE_LOGS_LEGACY_COLLECTION)
+    let legacy = await collLegacy.findOne({
       _id: oid,
       firebaseUid: auth.user.firebaseUid,
     })
+
+    if (!legacy && isAdminEmail(auth.user.email)) {
+      legacy = await collLegacy.findOne({ _id: oid })
+    }
 
     if (legacy?.image) {
       const buf = bufferFromBinaryField(legacy.image)

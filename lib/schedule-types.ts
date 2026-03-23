@@ -9,10 +9,19 @@ export const SCHEDULE_WEEKDAYS = [
 
 export type ScheduleWeekday = (typeof SCHEDULE_WEEKDAYS)[number]
 
-export type DaySchedule = {
+/** One open→close window (HH:mm). */
+export type DayScheduleWindow = {
   open: string
   close: string
 }
 
-/** Stored under `hours` on the weekly document. */
-export type WeeklyScheduleHours = Partial<Record<ScheduleWeekday, DaySchedule>>
+/** @deprecated use DayScheduleWindow */
+export type DaySchedule = DayScheduleWindow
+
+/**
+ * Per weekday: one or more time windows (e.g. Mon 11:00–12:00 and 15:30–16:40).
+ * Stored in MongoDB / API JSON as arrays per day.
+ */
+export type WeeklyScheduleHours = Partial<
+  Record<ScheduleWeekday, DayScheduleWindow[]>
+>

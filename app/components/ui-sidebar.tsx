@@ -7,7 +7,11 @@ import { usePathname } from "next/navigation"
 import ssgLogo from "@/app/assets/ssg.png"
 import { Spinner } from "@/app/components/spinner"
 
-export type UiSidebarSection = "attendance" | "attendance-log" | "schedule"
+export type UiSidebarSection =
+  | "attendance"
+  | "attendance-log"
+  | "schedule"
+  | "calendar"
 
 export const UI_SIDEBAR_ITEMS: ReadonlyArray<{
   id: UiSidebarSection
@@ -19,10 +23,19 @@ export const UI_SIDEBAR_ITEMS: ReadonlyArray<{
   { id: "schedule", label: "Schedule", href: "/ui/schedule" },
 ]
 
-/** Items for non-admin users. Admins only use Attendance (see product rules). */
+const ADMIN_SIDEBAR_ITEMS: ReadonlyArray<{
+  id: UiSidebarSection
+  label: string
+  href: string
+}> = [
+  { id: "attendance-log", label: "Attendance Log", href: "/ui/attendance-log" },
+  { id: "calendar", label: "Calendar", href: "/ui/calendar" },
+]
+
+/** Students: attendance + log + schedule. Admin: all-users log + calendar (set schedule for everyone). */
 export function getUiSidebarItemsForUser(isAdmin: boolean) {
   if (isAdmin) {
-    return UI_SIDEBAR_ITEMS.filter((item) => item.id === "attendance")
+    return ADMIN_SIDEBAR_ITEMS
   }
   return UI_SIDEBAR_ITEMS
 }
@@ -33,7 +46,7 @@ type UiSidebarProps = {
   userEmail?: string | null
   onLogout?: () => void | Promise<void>
   isLoggingOut?: boolean
-  /** When true, only Attendance is shown in the nav. */
+  /** When true, Attendance Log + Calendar (admin) are shown instead of student nav. */
   isAdmin?: boolean
   /** While true, nav links are deferred to avoid the wrong set flashing. */
   isRoleLoading?: boolean

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import type { AttendanceLogRow } from "@/lib/attendance-log-client-cache"
 import { formatLogDate } from "@/lib/attendance-log-display"
 import {
+  ADMIN_ATTENDANCE_LOG_GRID_TEMPLATE,
+  ADMIN_ATTENDANCE_LOG_TABLE_COLUMNS,
   ATTENDANCE_LOG_GRID_TEMPLATE,
   ATTENDANCE_LOG_PAGE_SIZE,
   ATTENDANCE_LOG_TABLE_COLUMNS,
@@ -14,14 +16,23 @@ type AttendanceLogTableProps = {
   rows: AttendanceLogRow[]
   loading: boolean
   filterDate: string
+  variant?: "student" | "admin"
 }
 
 export function AttendanceLogTable({
   rows,
   loading,
   filterDate,
+  variant = "student",
 }: AttendanceLogTableProps) {
   const [page, setPage] = useState(1)
+  const isAdmin = variant === "admin"
+  const gridTemplate = isAdmin
+    ? ADMIN_ATTENDANCE_LOG_GRID_TEMPLATE
+    : ATTENDANCE_LOG_GRID_TEMPLATE
+  const columns = isAdmin
+    ? ADMIN_ATTENDANCE_LOG_TABLE_COLUMNS
+    : ATTENDANCE_LOG_TABLE_COLUMNS
 
   const totalPages = Math.max(1, Math.ceil(rows.length / ATTENDANCE_LOG_PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
@@ -44,19 +55,21 @@ export function AttendanceLogTable({
   const fromN = rows.length === 0 ? 0 : sliceStart + 1
   const toN = sliceStart + pageRows.length
 
+  const minWidthClass = isAdmin ? "min-w-[92rem]" : "min-w-[82rem]"
+
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
       <div
-        className="min-w-[82rem] text-left text-sm"
+        className={`${minWidthClass} text-left text-sm`}
         role="table"
-        aria-label="Attendance records"
+        aria-label={isAdmin ? "All users attendance" : "Attendance records"}
       >
         <div
           role="row"
           className="grid border-b border-cyan-700/20 bg-cyan-600/50"
-          style={{ gridTemplateColumns: ATTENDANCE_LOG_GRID_TEMPLATE }}
+          style={{ gridTemplateColumns: gridTemplate }}
         >
-          {ATTENDANCE_LOG_TABLE_COLUMNS.map((label) => (
+          {columns.map((label) => (
             <div
               key={label}
               role="columnheader"
@@ -94,6 +107,7 @@ export function AttendanceLogTable({
               key={row.sessionId}
               row={row}
               rowNumber={sliceStart + i + 1}
+              variant={variant}
             />
           ))
         )}

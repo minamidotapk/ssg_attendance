@@ -1,5 +1,8 @@
 "use client"
 
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useUiRole } from "@/app/context/ui-role-context"
 import { AttendanceCameraPreview } from "@/app/ui/attendance/attendance-camera-preview"
 import { AttendanceControlBar } from "@/app/ui/attendance/attendance-control-bar"
 import { AttendanceLocationHint } from "@/app/ui/attendance/attendance-location-hint"
@@ -9,6 +12,15 @@ import { useAttendanceSubmit } from "@/app/ui/attendance/use-attendance-submit"
 import { useClockedInSession } from "@/app/ui/attendance/use-clocked-in-session"
 
 export default function AttendanceScreen() {
+  const router = useRouter()
+  const { isAdmin, isRoleLoading } = useUiRole()
+
+  useEffect(() => {
+    if (!isRoleLoading && isAdmin) {
+      router.replace("/ui/attendance-log")
+    }
+  }, [isAdmin, isRoleLoading, router])
+
   const { videoRef, cameraOn, streamError, cameraReady, toggleCamera } =
     useAttendanceCamera()
   const { isClockedIn, setIsClockedIn } = useClockedInSession()
@@ -27,6 +39,14 @@ export default function AttendanceScreen() {
     isClockedIn,
     setIsClockedIn,
   })
+
+  if (isRoleLoading || isAdmin) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
+        Redirecting…
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

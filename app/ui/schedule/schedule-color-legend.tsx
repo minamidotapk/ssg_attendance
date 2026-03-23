@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Legend: schedule window (fill) vs duty (accent line), matching grid styling.
+ * Legend: schedule (light horizontal band by minute in hour) vs duty (12px bar + ring).
  */
 export function ScheduleColorLegend() {
   return (
@@ -12,17 +12,19 @@ export function ScheduleColorLegend() {
     >
       <div className="flex items-center gap-2">
         <span
-          className="h-5 w-10 shrink-0 rounded border border-gray-200/80 bg-cyan-600/20"
+          className="relative h-5 w-10 shrink-0 overflow-hidden rounded border border-gray-200/80 bg-gray-50/90"
           aria-hidden
-        />
+        >
+          <span className="absolute inset-y-0.5 left-[20%] w-[45%] rounded-[1px] bg-cyan-600/25" />
+        </span>
         <span>Time schedule</span>
       </div>
       <div className="flex items-center gap-2">
         <span
-          className="flex h-5 w-10 shrink-0 items-center justify-center rounded border border-gray-200/80 bg-gray-50/90"
+          className="relative h-5 w-10 shrink-0 overflow-hidden rounded border border-gray-200/80 bg-gray-50/90"
           aria-hidden
         >
-          <span className="h-1 w-10 rounded-sm bg-cyan-600" />
+          <span className="absolute top-1/2 left-[30%] h-1.5 w-[28%] min-w-[10px] -translate-y-1/2 rounded-sm bg-cyan-700 ring-1 ring-violet-500/90" />
         </span>
         <span>Time on duty</span>
       </div>

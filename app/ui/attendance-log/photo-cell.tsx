@@ -159,7 +159,7 @@ export function PhotoCell({
         const blob = await getCachedPhotoBlob(cacheKey, async () => {
           const token = await user.getIdToken()
           const res = await fetch(
-            `/api/attendance/photo/${photoId}?side=${side}`,
+            `/api/attendance/photo/${encodeURIComponent(photoId)}?side=${side}`,
             {
               headers: { Authorization: `Bearer ${token}` },
             },

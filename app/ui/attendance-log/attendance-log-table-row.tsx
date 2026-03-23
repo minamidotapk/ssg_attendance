@@ -4,20 +4,28 @@ import {
   formatLogDate,
   formatLogTime,
 } from "@/lib/attendance-log-display"
-import { ATTENDANCE_LOG_GRID_TEMPLATE } from "@/app/ui/attendance-log/attendance-log-table.constants"
+import {
+  ADMIN_ATTENDANCE_LOG_GRID_TEMPLATE,
+  ATTENDANCE_LOG_GRID_TEMPLATE,
+} from "@/app/ui/attendance-log/attendance-log-table.constants"
 import { LocationCell } from "@/app/ui/attendance-log/location-cell"
 import { PhotoCell } from "@/app/ui/attendance-log/photo-cell"
 
 type AttendanceLogTableRowProps = {
   row: AttendanceLogRow
-  /** 1-based index in the full list (stable across pages). */
   rowNumber: number
+  variant?: "student" | "admin"
 }
 
 export function AttendanceLogTableRow({
   row,
   rowNumber,
+  variant = "student",
 }: AttendanceLogTableRowProps) {
+  const isAdmin = variant === "admin"
+  const gridTemplate = isAdmin
+    ? ADMIN_ATTENDANCE_LOG_GRID_TEMPLATE
+    : ATTENDANCE_LOG_GRID_TEMPLATE
   const isEven = rowNumber % 2 === 0
   return (
     <div
@@ -27,7 +35,7 @@ export function AttendanceLogTableRow({
           ? "bg-cyan-600/20 hover:bg-cyan-600/30"
           : "bg-white hover:bg-gray-200/90"
       }`}
-      style={{ gridTemplateColumns: ATTENDANCE_LOG_GRID_TEMPLATE }}
+      style={{ gridTemplateColumns: gridTemplate }}
     >
       <div
         role="cell"
@@ -35,6 +43,15 @@ export function AttendanceLogTableRow({
       >
         {rowNumber}
       </div>
+      {isAdmin ? (
+        <div
+          role="cell"
+          className="flex min-w-0 items-center truncate px-4 py-3 text-sm text-gray-900"
+          title={row.userEmail ?? ""}
+        >
+          {row.userEmail?.trim() || "—"}
+        </div>
+      ) : null}
       <div
         role="cell"
         className="flex items-center whitespace-nowrap px-4 py-3 font-medium text-gray-900"

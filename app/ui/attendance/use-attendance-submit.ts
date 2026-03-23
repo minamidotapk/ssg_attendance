@@ -55,10 +55,7 @@ export function useAttendanceSubmit({
         )
         return
       }
-      if (kind === "out" && !isClockedIn) {
-        showModal("You must log in first before you can log out.", "info")
-        return
-      }
+      // OUT is allowed to hit the server even when local state is stale.
 
       const user = auth.currentUser
       if (!user?.email) {
@@ -69,7 +66,7 @@ export function useAttendanceSubmit({
         return
       }
 
-      if (!cameraOn || streamError) {
+      if (kind === "in" && (!cameraOn || streamError)) {
         showModal(
           "Turn the camera on and wait for the preview before recording attendance.",
           "info",
@@ -78,13 +75,13 @@ export function useAttendanceSubmit({
       }
 
       const video = videoRef.current
-      if (!video) {
+      if (kind === "in" && !video) {
         showModal("The camera is not ready yet. Try again in a moment.", "info")
         return
       }
 
-      const imageBase64 = captureFrameFromVideo(video)
-      if (!imageBase64) {
+      const imageBase64 = video ? captureFrameFromVideo(video) : null
+      if (kind === "in" && !imageBase64) {
         showModal(
           "Could not capture a photo. Wait for the video preview to load, then try again.",
           "info",
@@ -94,31 +91,52 @@ export function useAttendanceSubmit({
 
       setSubmitting(kind)
       try {
-        let location: Awaited<ReturnType<typeof requestDeviceLocation>>
+        let location: Awaited<ReturnType<typeof requestDeviceLocation>> | null = null
         let idToken: string
-        try {
-          ;[location, idToken] = await Promise.all([
-            requestDeviceLocation(),
-            user.getIdToken(false),
-          ])
-        } catch (locErr) {
-          showModal(
-            locErr instanceof Error
-              ? locErr.message
-              : "Could not read your location.",
-            "error",
-          )
-          return
+        if (kind === "in") {
+          try {
+            ;[location, idToken] = await Promise.all([
+              requestDeviceLocation(),
+              user.getIdToken(false),
+            ])
+          } catch (locErr) {
+            showModal(
+              locErr instanceof Error
+                ? locErr.message
+                : "Could not read your location.",
+              "error",
+            )
+            return
+          }
+        } else {
+          try {
+            idToken = await user.getIdToken(false)
+          } catch {
+            showModal("Could not verify your session. Sign in again.", "error")
+            return
+          }
+          // For OUT, try to include proof when available; server can auto-close at 17:00 without it.
+          if (cameraOn && !streamError && imageBase64) {
+            try {
+              location = await requestDeviceLocation()
+            } catch {
+              location = null
+            }
+          }
         }
 
         const body = JSON.stringify({
           kind,
-          imageBase64,
-          location: {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-          },
+          ...(imageBase64 ? { imageBase64 } : {}),
+          ...(location
+            ? {
+                location: {
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  accuracy: location.accuracy,
+                },
+              }
+            : {}),
         })
 
         let res = await fetch("/api/attendance", {
@@ -144,6 +162,14 @@ export function useAttendanceSubmit({
         const data = (await res.json().catch(() => ({}))) as AttendancePostResponse
 
         if (!res.ok) {
+          if (kind === "in" && res.status === 409) {
+            persistClockedInUid(user.uid)
+            setIsClockedIn(true)
+          }
+          if (kind === "out" && res.status === 400) {
+            clearClockedInStorage()
+            setIsClockedIn(false)
+          }
           showModal(
             data.error ?? "Could not save attendance.",
             res.status === 409 ? "info" : "error",
@@ -155,15 +181,18 @@ export function useAttendanceSubmit({
           data.location != null
             ? parseAttendanceLocationPayload(data.location as unknown)
             : null
-        const locPayload: AttendanceLocation =
-          parsedFromApi ?? {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-            barangay: null,
-            municipality: null,
-            province: null,
-          }
+        const locPayload: AttendanceLocation | null =
+          parsedFromApi ??
+          (location
+            ? {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                accuracy: location.accuracy,
+                barangay: null,
+                municipality: null,
+                province: null,
+              }
+            : null)
 
         if (data.id && data.date && data.time) {
           if (kind === "in") {

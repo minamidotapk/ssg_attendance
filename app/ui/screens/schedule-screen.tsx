@@ -1,20 +1,29 @@
 "use client"
 
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useUiRole } from "@/app/context/ui-role-context"
 import { ScheduleColorLegend } from "@/app/ui/schedule/schedule-color-legend"
 import { ScheduleWeeklyGrid } from "@/app/ui/schedule/schedule-weekly-grid"
 import { useSchedulePageData } from "@/app/ui/schedule/use-schedule-page-data"
-import { useRedirectAdminFromStudentRoutes } from "@/app/ui/use-redirect-admin-from-student-routes"
 import {
-  SCHEDULE_GRID_HOUR_END,
+  SCHEDULE_GRID_HOUR_END_BOUNDARY,
   SCHEDULE_GRID_HOUR_START,
   formatScheduleHourLabel,
 } from "@/lib/schedule-grid"
 
 export default function ScheduleScreen() {
-  const { showSpinner } = useRedirectAdminFromStudentRoutes()
-  const { hours, dutySets, initialLoading, error } = useSchedulePageData()
+  const router = useRouter()
+  const { isAdmin, isRoleLoading } = useUiRole()
+  const { hours, dutySegments, initialLoading, error } = useSchedulePageData()
 
-  if (showSpinner) {
+  useEffect(() => {
+    if (!isRoleLoading && isAdmin) {
+      router.replace("/ui/calendar")
+    }
+  }, [isAdmin, isRoleLoading, router])
+
+  if (isRoleLoading || isAdmin) {
     return (
       <div
         className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500"
@@ -25,7 +34,7 @@ export default function ScheduleScreen() {
     )
   }
 
-  const rangeLabel = `${formatScheduleHourLabel(SCHEDULE_GRID_HOUR_START)}–${formatScheduleHourLabel(SCHEDULE_GRID_HOUR_END)}`
+  const rangeLabel = `${formatScheduleHourLabel(SCHEDULE_GRID_HOUR_START)}–${formatScheduleHourLabel(SCHEDULE_GRID_HOUR_END_BOUNDARY)}`
 
   return (
     <div className="space-y-6">
@@ -33,8 +42,6 @@ export default function ScheduleScreen() {
         <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
         <p className="mt-2 text-sm text-gray-600">
           Academic year <span className="font-medium text-gray-800">2025–2026</span>.
-          Grid covers {rangeLabel}. Cyan fill = published schedule; solid line = your attendance
-          (Mon–Sat, this week).
         </p>
       </header>
 
@@ -55,13 +62,8 @@ export default function ScheduleScreen() {
           <p className="text-sm text-gray-600">Loading schedule…</p>
         </div>
       ) : (
-        <ScheduleWeeklyGrid hours={hours ?? {}} dutySets={dutySets} />
+        <ScheduleWeeklyGrid hours={hours ?? {}} dutySegments={dutySegments} />
       )}
-
-      <p className="text-xs text-gray-500">
-        Cached on this device for faster return visits. New punches update the duty line in real
-        time. Schedule shading is set by your admin.
-      </p>
     </div>
   )
 }

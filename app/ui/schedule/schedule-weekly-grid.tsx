@@ -4,58 +4,113 @@ import { memo, useMemo } from "react"
 import type { WeeklyScheduleHours } from "@/lib/schedule-types"
 import { SCHEDULE_WEEKDAYS } from "@/lib/schedule-types"
 import {
-  formatScheduleHourLabel,
-  hourCellIsWithinRange,
+  formatScheduleHeaderCellLabel,
   scheduleHourColumns,
+  scheduleShadeSegmentsInHour,
+  type HourTimelineSegmentPercent,
 } from "@/lib/schedule-grid"
-import { dutySetHasHour, type ScheduleDutySets } from "@/lib/schedule-duty"
+import {
+  EMPTY_DUTY_SEGMENTS,
+  type DutySegmentInCell,
+  type ScheduleDutySegments,
+} from "@/lib/schedule-duty"
 
-type ScheduleWeeklyGridProps = {
-  hours: WeeklyScheduleHours
-  dutySets: ScheduleDutySets
+type CellModel = {
+  scheduleSegments: HourTimelineSegmentPercent[]
+  dutySegments: DutySegmentInCell[]
 }
 
 /** Precompute cell flags once per props change (few rows/cols, but avoids work during scroll). */
 function buildCellMatrix(
   hours: WeeklyScheduleHours,
-  dutySets: ScheduleDutySets,
+  dutySegments: ScheduleDutySegments,
   cols: readonly number[],
-) {
+  showDutyLines: boolean,
+): CellModel[][] {
   return SCHEDULE_WEEKDAYS.map((day) =>
-    cols.map((h) => ({
-      scheduleShade: hourCellIsWithinRange(hours[day], h),
-      dutyLine: dutySetHasHour(dutySets, day, h),
+    cols.map((h, hi) => ({
+      scheduleSegments: scheduleShadeSegmentsInHour(hours[day], h),
+      dutySegments:
+        showDutyLines && dutySegments[day]?.[hi]?.length
+          ? dutySegments[day]![hi]!
+          : [],
     })),
   )
 }
 
-function ScheduleWeeklyGridInner({ hours, dutySets }: ScheduleWeeklyGridProps) {
+function scheduleTooltip(segs: HourTimelineSegmentPercent[]): string {
+  if (segs.length === 0) return "Outside published hours"
+  if (segs.length === 1 && segs[0]!.width >= 99.5) {
+    return "Published schedule (full hour)"
+  }
+  return "Published schedule (partial hour)"
+}
+
+function dutyTooltip(segs: DutySegmentInCell[]): string {
+  if (segs.length === 0) return ""
+  if (segs.length === 1 && segs[0]!.width >= 99.5) {
+    return "On duty (attendance, full hour)"
+  }
+  return "On duty (attendance)"
+}
+
+type ScheduleWeeklyGridProps = {
+  hours: WeeklyScheduleHours
+  /** Attendance intervals as horizontal bars positioned by minute within each hour column. */
+  dutySegments?: ScheduleDutySegments
+  /** When false, hide attendance duty overlay (e.g. admin calendar preview). */
+  showDutyLines?: boolean
+}
+
+function ScheduleWeeklyGridInner({
+  hours,
+  dutySegments = EMPTY_DUTY_SEGMENTS,
+  showDutyLines = true,
+}: ScheduleWeeklyGridProps) {
   const cols = scheduleHourColumns()
   const matrix = useMemo(
-    () => buildCellMatrix(hours, dutySets, cols),
-    [hours, dutySets, cols],
+    () => buildCellMatrix(hours, dutySegments, cols, showDutyLines),
+    [hours, dutySegments, cols, showDutyLines],
   )
 
   return (
     <div className="relative max-h-[min(68vh,480px)] overflow-auto rounded-lg border border-gray-200 [contain:content]">
-      <table className="w-full min-w-[560px] border-collapse text-center text-[11px] sm:text-xs">
+      <table className="w-full min-w-[640px] border-collapse text-center text-[11px] sm:text-xs">
         <thead className="sticky top-0 z-30 bg-gray-100 shadow-[0_1px_0_0_rgb(229_231_235)]">
           <tr>
             <th
               scope="col"
-              className="sticky left-0 z-40 w-24 min-w-[5.5rem] border-b border-r border-gray-200 bg-gray-100 px-1.5 py-1.5 text-left text-[10px] font-semibold text-gray-700 sm:px-2 sm:py-2 sm:text-xs"
+              className="sticky left-0 z-40 w-24 min-w-[5.5rem] border-b border-r border-gray-200 bg-gray-100 px-1.5 py-2 text-left text-[12px] font-semibold text-gray-700"
             >
-              Day / Hour
+              <span className="block pb-1.5 pt-1">Day / Hour</span>
             </th>
-            {cols.map((h) => (
-              <th
-                key={h}
-                scope="col"
-                className="min-w-[2.25rem] border-b border-l border-gray-200 px-0.5 py-1.5 font-medium whitespace-nowrap text-gray-600 sm:min-w-[2.5rem] sm:px-1"
-              >
-                {formatScheduleHourLabel(h)}
-              </th>
-            ))}
+            {cols.map((h, i) => {
+              const isLast = i === cols.length - 1
+              return (
+                <th
+                  key={h}
+                  scope="col"
+                  aria-label={`${formatScheduleHeaderCellLabel(h, 0)}–${formatScheduleHeaderCellLabel(h + 1, 0)}`}
+                  className={`relative min-w-[4.5rem] border-b border-l border-gray-200 bg-gray-100 px-0 py-2 font-normal sm:min-w-[5rem] ${
+                    i === 0 ? "pl-1.5" : ""
+                  } ${isLast ? "border-r border-gray-200 pr-1.5" : ""}`}
+                >
+                  <div className="relative min-h-[2.5rem]">
+                    <span className="pointer-events-none absolute left-0 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[12px] font-medium tabular-nums tracking-tight text-gray-700">
+                      {i === 0 ? "" : formatScheduleHeaderCellLabel(h, 0)}
+                    </span>
+                    <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[12px] tabular-nums text-gray-600">
+                      {i === 0 ? "" : formatScheduleHeaderCellLabel(h, 30)}
+                    </span>
+                    {isLast ? (
+                      <span className="pointer-events-none absolute right-0 top-1/2 z-10 translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[12px] font-medium tabular-nums tracking-tight text-gray-700">
+                        {formatScheduleHeaderCellLabel(h + 1, 0)}
+                      </span>
+                    ) : null}
+                  </div>
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
@@ -69,26 +124,43 @@ function ScheduleWeeklyGridInner({ hours, dutySets }: ScheduleWeeklyGridProps) {
               </th>
               {cols.map((h, hi) => {
                 const cell = matrix[di]![hi]!
+                const hasSchedule = cell.scheduleSegments.length > 0
+                const hasDuty = cell.dutySegments.length > 0
+                const tipParts: string[] = [`${day}`]
+                if (hasSchedule) tipParts.push(scheduleTooltip(cell.scheduleSegments))
+                if (hasDuty) tipParts.push(dutyTooltip(cell.dutySegments))
+                if (!hasSchedule && !hasDuty) tipParts.push("outside published hours")
                 return (
                   <td
                     key={`${day}-${h}`}
-                    className={`relative h-8 overflow-hidden border border-gray-200 sm:h-9 ${
-                      cell.scheduleShade ? "bg-cyan-600/20" : "bg-gray-50/90"
-                    }`}
-                    title={
-                      cell.dutyLine
-                        ? `${day}: on duty (attendance)`
-                        : cell.scheduleShade
-                          ? `${day}: published schedule`
-                          : `${day}: outside published hours`
-                    }
+                    className="relative h-8 overflow-hidden border border-gray-200 bg-gray-50/90 sm:h-9"
+                    title={tipParts.join(" · ")}
                   >
-                    {cell.dutyLine ? (
-                      <span
-                        className="pointer-events-none absolute bottom-0.5 left-0.5 right-0.5 h-0.5 rounded-full bg-cyan-600"
+                    {cell.scheduleSegments.map((seg, i) => (
+                      <div
+                        key={`s-${i}`}
+                        className="pointer-events-none absolute top-0.5 bottom-0.5 z-0 rounded-[1px] bg-cyan-600/25"
+                        style={{
+                          left: `${seg.left}%`,
+                          width: `max(2px, ${seg.width}%)`,
+                        }}
                         aria-hidden
                       />
-                    ) : null}
+                    ))}
+                    {cell.dutySegments.map((seg, i) => (
+                      <div
+                        key={`d-${i}`}
+                        className="pointer-events-none absolute z-10 rounded-sm bg-cyan-700 ring-1 ring-violet-500/90"
+                        style={{
+                          left: `${seg.left}%`,
+                          width: `max(12px, ${seg.width}%)`,
+                          top: "50%",
+                          height: "12px",
+                          transform: "translateY(-50%)",
+                        }}
+                        aria-hidden
+                      />
+                    ))}
                   </td>
                 )
               })}

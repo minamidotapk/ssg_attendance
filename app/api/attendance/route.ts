@@ -8,6 +8,7 @@ import { reverseGeocodeToPhPlace } from "@/lib/reverse-geocode-nominatim"
 import { requireAttendanceAuth } from "@/lib/attendance-auth"
 import { ATTENDANCE_SESSIONS_COLLECTION } from "@/lib/attendance-collections"
 import { logRouteError } from "@/lib/api-route-errors"
+import { autoClockOutOpenSessionIfNeeded } from "@/lib/attendance-auto-clockout"
 import {
   getAttendanceDbName,
   getMongoClientPromise,
@@ -67,23 +68,6 @@ export async function POST(request: Request) {
     const imageBase64 = body.imageBase64
     const location = parseAttendanceLocationPayload(body.location)
 
-    if (!location) {
-      return NextResponse.json(
-        {
-          error:
-            "Valid location is required (latitude and longitude). Allow location access and try again.",
-        },
-        { status: 400 },
-      )
-    }
-
-    if (!imageBase64) {
-      return NextResponse.json(
-        { error: "imageBase64 is required" },
-        { status: 400 },
-      )
-    }
-
     if (kind !== "in" && kind !== "out") {
       return NextResponse.json(
         { error: 'kind must be "in" or "out"' },
@@ -91,35 +75,46 @@ export async function POST(request: Request) {
       )
     }
 
-    const base64Payload = imageBase64.includes(",")
-      ? imageBase64.slice(imageBase64.indexOf(",") + 1)
-      : imageBase64
-
-    let buffer: Buffer
-    try {
-      buffer = Buffer.from(base64Payload, "base64")
-    } catch {
-      return NextResponse.json({ error: "Invalid image data" }, { status: 400 })
-    }
-
-    if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
-      return NextResponse.json(
-        { error: "Image is empty or too large" },
-        { status: 413 },
-      )
-    }
-
     const now = new Date()
     const tz = process.env.ATTENDANCE_TIMEZONE ?? "Asia/Manila"
     const { date, time } = formatDateTimeInZone(now, tz)
 
-    const locationDoc = await buildStoredLocation(location)
-
     const client = await getMongoClientPromise()
     const db = client.db(getAttendanceDbName())
     const coll = db.collection(ATTENDANCE_SESSIONS_COLLECTION)
+    await autoClockOutOpenSessionIfNeeded(coll, firebaseUid, now, tz)
 
     if (kind === "in") {
+      if (!location) {
+        return NextResponse.json(
+          {
+            error:
+              "Valid location is required (latitude and longitude). Allow location access and try again.",
+          },
+          { status: 400 },
+        )
+      }
+      if (!imageBase64) {
+        return NextResponse.json(
+          { error: "imageBase64 is required" },
+          { status: 400 },
+        )
+      }
+      const payload = imageBase64.includes(",")
+        ? imageBase64.slice(imageBase64.indexOf(",") + 1)
+        : imageBase64
+      let inBuffer: Buffer
+      try {
+        inBuffer = Buffer.from(payload, "base64")
+      } catch {
+        return NextResponse.json({ error: "Invalid image data" }, { status: 400 })
+      }
+      if (inBuffer.length === 0 || inBuffer.length > MAX_IMAGE_BYTES) {
+        return NextResponse.json(
+          { error: "Image is empty or too large" },
+          { status: 413 },
+        )
+      }
       const open = await coll.findOne({
         firebaseUid,
         timeOut: null,
@@ -134,12 +129,13 @@ export async function POST(request: Request) {
         )
       }
 
+      const locationDoc = await buildStoredLocation(location)
       const result = await coll.insertOne({
         email,
         firebaseUid,
         date,
         timeIn: time,
-        imageIn: new Binary(buffer),
+        imageIn: new Binary(inBuffer),
         contentTypeIn: "image/jpeg",
         locationIn: locationDoc,
         timeOut: null,
@@ -159,18 +155,80 @@ export async function POST(request: Request) {
       })
     }
 
-    const updated = await coll.findOneAndUpdate(
+    const openForOut = await coll.findOne(
       { firebaseUid, timeOut: null },
+      { sort: { createdAt: -1 } },
+    )
+    if (!openForOut?._id) {
+      return NextResponse.json(
+        { error: "No open clock-in found. Clock in first." },
+        { status: 400 },
+      )
+    }
+
+    const canAutoOutWithoutProof = date > String(openForOut.date ?? "") || time >= "17:00:00"
+    if (!location || !imageBase64) {
+      if (!canAutoOutWithoutProof) {
+        return NextResponse.json(
+          {
+            error:
+              "Turn on camera and allow location before clocking out. Auto clock-out without photo/location is only after 5:00 PM.",
+          },
+          { status: 400 },
+        )
+      }
+
+      await coll.updateOne(
+        { _id: openForOut._id, firebaseUid, timeOut: null },
+        {
+          $set: {
+            timeOut: "17:00:00",
+            imageOut: null,
+            contentTypeOut: null,
+            locationOut: null,
+            autoClockedOut: true,
+            updatedAt: now,
+          },
+        },
+      )
+      return NextResponse.json({
+        ok: true,
+        id: String(openForOut._id),
+        date: String(openForOut.date ?? date),
+        time: "17:00:00",
+      })
+    }
+
+    let buffer: Buffer
+    try {
+      const payload = imageBase64.includes(",")
+        ? imageBase64.slice(imageBase64.indexOf(",") + 1)
+        : imageBase64
+      buffer = Buffer.from(payload, "base64")
+    } catch {
+      return NextResponse.json({ error: "Invalid image data" }, { status: 400 })
+    }
+    if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
+      return NextResponse.json(
+        { error: "Image is empty or too large" },
+        { status: 413 },
+      )
+    }
+    const locationDoc = await buildStoredLocation(location)
+
+    const updated = await coll.findOneAndUpdate(
+      { _id: openForOut._id, firebaseUid, timeOut: null },
       {
         $set: {
           timeOut: time,
           imageOut: new Binary(buffer),
           contentTypeOut: "image/jpeg",
           locationOut: locationDoc,
+          autoClockedOut: false,
           updatedAt: now,
         },
       },
-      { sort: { createdAt: -1 }, returnDocument: ReturnDocument.AFTER },
+      { returnDocument: ReturnDocument.AFTER },
     )
 
     /** Driver may return `ModifyResult` (`value`) or the document itself. */

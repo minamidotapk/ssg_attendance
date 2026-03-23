@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useState } from "react"
 import { auth } from "@/firebase.config"
-import {
-  isAttendanceLogStorageKeyForUser,
-  readLogsCache,
-  writeLogsCache,
-  type AttendanceLogRow,
-} from "@/lib/attendance-log-client-cache"
+import type { AttendanceLogRow } from "@/lib/attendance-log-client-cache"
 import { DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS } from "@/lib/attendance-log-constants"
-import { useAttendanceLogLiveVersion } from "@/app/context/attendance-log-live-version"
 import {
   type AttendanceLogsApiResponse,
   rangeHintFromApiResponse,
 } from "./logs-api"
+
+const ADMIN_PREFIX = "ssg_admin_attendance_logs_v3:"
 
 function filterStorageKey(trimmedDate: string): string {
   return trimmedDate
@@ -19,14 +15,37 @@ function filterStorageKey(trimmedDate: string): string {
     : `w:${DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS}`
 }
 
-type UseAttendanceLogsOptions = {
-  /** When false, no fetch and no student log side effects (e.g. admin uses all-users hook). */
-  enabled?: boolean
+function cacheKey(uid: string, filterKey: string) {
+  return `${ADMIN_PREFIX}${uid}:${filterKey}`
 }
 
-export function useAttendanceLogs(options?: UseAttendanceLogsOptions) {
-  const enabled = options?.enabled !== false
-  const liveLogVersion = useAttendanceLogLiveVersion()
+function readAdminCache(uid: string, filterKey: string): AttendanceLogRow[] | null {
+  if (typeof sessionStorage === "undefined") return null
+  try {
+    const raw = sessionStorage.getItem(cacheKey(uid, filterKey))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { rows: AttendanceLogRow[]; at: number }
+    if (!Array.isArray(parsed.rows) || typeof parsed.at !== "number") return null
+    if (Date.now() - parsed.at > 30 * 60 * 1000) return null
+    return parsed.rows
+  } catch {
+    return null
+  }
+}
+
+function writeAdminCache(uid: string, filterKey: string, rows: AttendanceLogRow[]) {
+  if (typeof sessionStorage === "undefined") return
+  try {
+    sessionStorage.setItem(
+      cacheKey(uid, filterKey),
+      JSON.stringify({ rows, at: Date.now() }),
+    )
+  } catch {
+    /* quota */
+  }
+}
+
+export function useAdminAttendanceLogs(enabled: boolean) {
   const [filterDate, setFilterDate] = useState("")
   const [rows, setRows] = useState<AttendanceLogRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,7 +58,7 @@ export function useAttendanceLogs(options?: UseAttendanceLogsOptions) {
       setError(null)
       const user = auth.currentUser
       if (!user) {
-        setError("Sign in to view your attendance log.")
+        setError("Sign in required.")
         setRows([])
         setRangeHint(null)
         setLoading(false)
@@ -50,13 +69,13 @@ export function useAttendanceLogs(options?: UseAttendanceLogsOptions) {
       const filterKey = filterStorageKey(trimmed)
 
       if (!opts?.force) {
-        const cached = readLogsCache(user.uid, filterKey)
+        const cached = readAdminCache(user.uid, filterKey)
         if (cached) {
           setRows(cached)
           setRangeHint(
             trimmed
               ? null
-              : `Showing cached rolling window (~${DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS} days).`,
+              : `All users — cached rolling window (~${DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS} days).`,
           )
           setLoading(false)
           return
@@ -69,7 +88,7 @@ export function useAttendanceLogs(options?: UseAttendanceLogsOptions) {
         const q = trimmed
           ? `?date=${encodeURIComponent(trimmed)}`
           : `?windowDays=${DEFAULT_ATTENDANCE_LOG_WINDOW_DAYS}`
-        const res = await fetch(`/api/attendance/logs${q}`, {
+        const res = await fetch(`/api/admin/attendance/logs${q}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = (await res.json().catch(() => ({}))) as AttendanceLogsApiResponse
@@ -81,8 +100,15 @@ export function useAttendanceLogs(options?: UseAttendanceLogsOptions) {
         }
         const nextRows = data.rows ?? []
         setRows(nextRows)
-        writeLogsCache(user.uid, filterKey, nextRows)
-        setRangeHint(rangeHintFromApiResponse(data.range))
+        writeAdminCache(user.uid, filterKey, nextRows)
+        if (trimmed) {
+          setRangeHint(null)
+        } else {
+          const base = rangeHintFromApiResponse(data.range)
+          setRangeHint(
+            base ? `All users — ${base}` : "All users — attendance records.",
+          )
+        }
       } catch {
         setError("Network error.")
         setRows([])
@@ -104,28 +130,6 @@ export function useAttendanceLogs(options?: UseAttendanceLogsOptions) {
     }
     void loadLogs()
   }, [enabled, loadLogs])
-
-  useEffect(() => {
-    if (!enabled || liveLogVersion === 0) return
-    const user = auth.currentUser
-    if (!user) return
-    const fk = filterStorageKey(filterDate.trim())
-    const fresh = readLogsCache(user.uid, fk)
-    if (fresh) setRows(fresh)
-  }, [enabled, liveLogVersion, filterDate])
-
-  useEffect(() => {
-    if (!enabled) return
-    const onStorage = (e: StorageEvent) => {
-      const uid = auth.currentUser?.uid
-      if (!uid || !isAttendanceLogStorageKeyForUser(e.key, uid)) return
-      const fk = filterStorageKey(filterDate.trim())
-      const fresh = readLogsCache(uid, fk)
-      if (fresh) setRows(fresh)
-    }
-    window.addEventListener("storage", onStorage)
-    return () => window.removeEventListener("storage", onStorage)
-  }, [enabled, filterDate])
 
   const clearDateFilter = useCallback(() => {
     setFilterDate("")

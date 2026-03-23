@@ -26,22 +26,17 @@ export function LocationCell({ loc }: LocationCellProps) {
         <dl className="space-y-0.5">
           {loc.barangay ? (
             <div>
-              <dt className="inline font-medium text-gray-600">Brgy.: </dt>
-              <dd className="inline">{loc.barangay}</dd>
+              <p className="inline">{loc.barangay}</p>
             </div>
           ) : null}
           {loc.municipality ? (
             <div>
-              <dt className="inline font-medium text-gray-600">
-                City / Municipality:{" "}
-              </dt>
-              <dd className="inline">{loc.municipality}</dd>
+              <p className="inline">{loc.municipality}</p>
             </div>
           ) : null}
           {loc.province ? (
             <div>
-              <dt className="inline font-medium text-gray-600">Province: </dt>
-              <dd className="inline">{loc.province}</dd>
+              <p className="inline">{loc.province}</p>
             </div>
           ) : null}
         </dl>

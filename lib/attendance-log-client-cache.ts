@@ -11,6 +11,8 @@ export type AttendanceLogRow = {
   timeIn: string | null
   timeOut: string | null
   sessionId: string
+  /** Present on admin “all users” log rows. */
+  userEmail?: string
   locationIn: AttendanceLocation | null
   locationOut: AttendanceLocation | null
 }
@@ -30,7 +32,7 @@ export type AttendanceLogLiveUpdate =
       /** Manila calendar date for this punch (matches API `date`). */
       date: string
       timeOut: string
-      locationOut: AttendanceLocation
+      locationOut: AttendanceLocation | null
     }
 
 function logsStorageKey(uid: string, filterKey: string) {
